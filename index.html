@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Estoque</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            margin-top: 50px;
+            width: 80%;
+            max-width: 800px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .form-container, .search-container {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .form-container input[type="text"] {
+            text-transform: uppercase; /* Converte entrada para maiúsculas */
+        }
+
+        .form-container input, .form-container select, .form-container button,
+        .search-container input, .search-container button {
+            margin: 5px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        .form-container button, .search-container button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .form-container button:hover, .search-container button:hover {
+            background-color: #218838;
+        }
+
+        .stats {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .stats div {
+            display: inline-block;
+            margin: 0 10px;
+        }
+
+        .stats div span {
+            font-weight: bold;
+        }
+
+        .boards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .board {
+            position: relative;
+            padding: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: calc(33.333% - 10px);
+            box-sizing: border-box;
+        }
+
+        .board h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .board p {
+            font-size: 16px;
+            margin: 5px 0 10px; /* Ajuste de margem para o nome do endereço */
+        }
+
+        .board .status-menu {
+            margin-bottom: 10px; /* Espaço abaixo do campo de alteração de status */
+        }
+
+        .board .status-menu select {
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        .indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ccc;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .indicator.green {
+            background-color: #28a745;
+        }
+
+        .indicator.red {
+            background-color: #dc3545;
+        }
+
+        .no-results {
+            display: none;
+            text-align: center;
+            font-size: 18px;
+            color: #999;
+            margin-top: 20px;
+        }
+
+        .delete-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-top: 10px; /* Espaço acima do botão de exclusão */
+        }
+
+        .delete-button:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerenciamento de Estoque</h1>
+        <div class="form-container">
+            <input type="text" id="address" placeholder="Nome do Endereço (Ex: PPF0101)" maxlength="8">
+            <select id="type">
+                <option value="Porta Pallets">Porta Pallets</option>
+                <option value="Prateleiras">Prateleiras</option>
+            </select>
+            <select id="status">
+                <option value="VAZIO">VAZIO</option>
+                <option value="EM USO">EM USO</option>
+                <option value="CHEIO">CHEIO</option>
+            </select>
+            <button onclick="addBoard()">Adicionar Quadro</button>
+        </div>
+        <div class="search-container">
+            <input type="text" id="searchQuery" placeholder="Buscar por Endereço ou Status" oninput="searchBoards()">
+        </div>
+        <div class="stats" id="stats">
+            <div><strong>Porta Pallets</strong></div>
+            <div><span id="emptyCountPP">0</span> Vazios</div>
+            <div><span id="inUseCountPP">0</span> Em Uso</div>
+            <div><span id="fullCountPP">0</span> Cheios</div>
+            <div><span id="occupancyPP">0</span>% de Ocupação</div>
+            <br>
+            <div><strong>Prateleiras</strong></div>
+            <div><span id="emptyCountPrat">0</span> Vazios</div>
+            <div><span id="inUseCountPrat">0</span> Em Uso</div>
+            <div><span id="fullCountPrat">0</span> Cheios</div>
+            <div><span id="occupancyPrat">0</span>% de Ocupação</div>
+        </div>
+        <div class="boards" id="boards"></div>
+        <div class="no-results" id="noResults">Nenhum resultado encontrado.</div>
+    </div>
+    <script>
+        let addressList = []; // Lista para armazenar os nomes dos endereços
+
+        function addBoard() {
+            let address = document.getElementById('address').value.trim().toUpperCase(); // Convertendo para maiúsculas
+            const type = document.getElementById('type').value;
+            const status = document.getElementById('status').value;
+
+            const regex = /^[A-Z]{3}\d{2}\d{2}$/;
+
+            if (address === '') {
+                alert('Por favor, insira o nome do endereço.');
+                return;
+            }
+
+            if (!regex.test(address)) {
+                alert('O nome do endereço deve seguir o padrão 3 letras, 2 números, 2 números (ex: PPF0101).');
+                return;
+            }
+
+            if (addressList.includes(address)) {
+                alert('Já existe um endereço com esse nome.');
+                return;
+            }
+
+            addressList.push(address); // Adiciona o novo endereço à lista
+
+            const boardContainer = document.getElementById('boards');
+
+            const board = document.createElement('div');
+            board.className = 'board';
+            board.setAttribute('data-address', address);
+            board.setAttribute('data-type', type);
+            board.setAttribute('data-status', status);
+
+            const boardTitle = document.createElement('h2');
+            boardTitle.textContent = address;
+
+            const boardType = document.createElement('p');
+            boardType.textContent = `Tipo: ${type}`;
+
+            const boardStatus = document.createElement('p');
+            boardStatus.setAttribute('data-status', status);
+            boardStatus.textContent = `Status: ${status}`;
+
+            const indicator = document.createElement('div');
+            indicator.className = 'indicator';
+            if (status === 'EM USO') {
+                indicator.classList.add('green');
+            } else if (status === 'CHEIO') {
+                indicator.classList.add('red');
+            }
+
+            const statusMenu = document.createElement('div');
+            statusMenu.className = 'status-menu';
+            statusMenu.innerHTML = `
+                <select onchange="changeStatus(this)">
+                    <option value="VAZIO" ${status === 'VAZIO' ? 'selected' : ''}>VAZIO</option>
+                    <option value="EM USO" ${status === 'EM USO' ? 'selected' : ''}>EM USO</option>
+                    <option value="CHEIO" ${status === 'CHEIO' ? 'selected' : ''}>CHEIO</option>
+                </select>
+            `;
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-button';
+            deleteButton.textContent = 'Excluir';
+            deleteButton.onclick = function() {
+                const confirmation = prompt('Digite a senha para confirmar a exclusão:');
+                if (confirmation === 'gestao2024') {
+                    boardContainer.removeChild(board);
+                    const index = addressList.indexOf(address);
+                    if (index !== -1) {
+                        addressList.splice(index, 1);
+                    }
+                    updateStats(); // Atualiza estatísticas após exclusão
+                    searchBoards(); // Atualiza resultados da busca após exclusão
+                } else {
+                    alert('Senha incorreta. A exclusão foi cancelada.');
+                }
+            };
+
+            board.appendChild(boardTitle);
+            board.appendChild(boardType);
+            board.appendChild(statusMenu);
+            board.appendChild(boardStatus);
+            board.appendChild(indicator);
+            board.appendChild(deleteButton);
+            boardContainer.appendChild(board);
+
+            document.getElementById('address').value = '';
+            document.getElementById('type').value = 'Porta Pallets';
+            document.getElementById('status').value = 'VAZIO';
+
+            // Atualiza estatísticas e resultados da busca
+            updateStats();
+            searchBoards();
+        }
+
+        function changeStatus(select) {
+            const board = select.closest('.board');
+            const status = select.value;
+            board.setAttribute('data-status', status);
+
+            const indicator = board.querySelector('.indicator');
+            indicator.classList.remove('green', 'red');
+
+            if (status === 'EM USO') {
+                indicator.classList.add('green');
+            } else if (status === 'CHEIO') {
+                indicator.classList.add('red');
+            }
+
+            board.querySelector('p[data-status]').textContent = `Status: ${status}`;
+
+            // Atualiza estatísticas após alterar o status
+            updateStats();
+            searchBoards(); // Atualiza resultados da busca após alterar o status
+        }
+
+        function updateStats() {
+            const emptyCountPP = document.getElementById('emptyCountPP');
+            const inUseCountPP = document.getElementById('inUseCountPP');
+            const fullCountPP = document.getElementById('fullCountPP');
+            const occupancyPP = document.getElementById('occupancyPP');
+
+            const emptyCountPrat = document.getElementById('emptyCountPrat');
+            const inUseCountPrat = document.getElementById('inUseCountPrat');
+            const fullCountPrat = document.getElementById('fullCountPrat');
+            const occupancyPrat = document.getElementById('occupancyPrat');
+
+            const boards = document.querySelectorAll('.board');
+            let emptyPP = 0, inUsePP = 0, fullPP = 0;
+            let emptyPrat = 0, inUsePrat = 0, fullPrat = 0;
+
+            boards.forEach(board => {
+                const type = board.getAttribute('data-type');
+                const status = board.getAttribute('data-status');
+
+                if (type === 'Porta Pallets') {
+                    if (status === 'VAZIO') {
+                        emptyPP++;
+                    } else if (status === 'EM USO') {
+                        inUsePP++;
+                    } else if (status === 'CHEIO') {
+                        fullPP++;
+                    }
+                } else if (type === 'Prateleiras') {
+                    if (status === 'VAZIO') {
+                        emptyPrat++;
+                    } else if (status === 'EM USO') {
+                        inUsePrat++;
+                    } else if (status === 'CHEIO') {
+                        fullPrat++;
+                    }
+                }
+            });
+
+            const totalPP = emptyPP + inUsePP + fullPP;
+            const totalPrat = emptyPrat + inUsePrat + fullPrat;
+
+            emptyCountPP.textContent = emptyPP;
+            inUseCountPP.textContent = inUsePP;
+            fullCountPP.textContent = fullPP;
+            occupancyPP.textContent = totalPP ? Math.round(((inUsePP + fullPP) / totalPP) * 100) : 0;
+
+            emptyCountPrat.textContent = emptyPrat;
+            inUseCountPrat.textContent = inUsePrat;
+            fullCountPrat.textContent = fullPrat;
+            occupancyPrat.textContent = totalPrat ? Math.round(((inUsePrat + fullPrat) / totalPrat) * 100) : 0;
+        }
+
+        function searchBoards() {
+            const query = document.getElementById('searchQuery').value.toUpperCase();
+            const boards = document.querySelectorAll('.board');
+            let hasResults = false;
+
+            boards.forEach(board => {
+                const address = board.getAttribute('data-address');
+                const type = board.getAttribute('data-type').toUpperCase();
+                const status = board.getAttribute('data-status').toUpperCase();
+
+                if (address.includes(query) || status.includes(query) || type.includes(query)) {
+                    board.style.display = '';
+                    hasResults = true;
+                } else {
+                    board.style.display = 'none';
+                }
+            });
+
+            document.getElementById('noResults').style.display = hasResults ? 'none' : 'block';
+        }
+    </script>
+</body>
+</html>
